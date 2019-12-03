@@ -28,11 +28,14 @@ def parseSegments(ln):
     return map(Segment.parse, ln.split(","))
 
 def enumerateAllPoints(segments):
-    points = set()
+    points = {}
     currentPoint = (0, 0)
+    walked = 0
     for segment in segments:
         for p in segment.enumeratePoints(currentPoint):
-            points.add(p)
+            walked += 1
+            if p not in points:
+                points[p] = walked
             currentPoint = p
     return points
 
@@ -49,12 +52,12 @@ def solveIt():
     firstSegments = parseSegments(firstLine.strip())
     secondSegments = parseSegments(secondLine.strip())
 
-    allFirstSegmentPoints = enumerateAllPoints(firstSegments)
-    allSecondSegmentPoints = enumerateAllPoints(secondSegments)
-
-    overlaps = min(manhattan(s) for s in allFirstSegmentPoints.intersection(allSecondSegmentPoints) if s != (0, 0))
-
-    print(overlaps)
+    allFirstSegmentPointsWithCost = enumerateAllPoints(firstSegments)
+    allSecondSegmentPointsWithCost = enumerateAllPoints(secondSegments)
+    
+    overlaps = allFirstSegmentPointsWithCost.keys() & allSecondSegmentPointsWithCost.keys()
+    minCost = min(allFirstSegmentPointsWithCost[p] + allSecondSegmentPointsWithCost[p] for p in overlaps)
+    print(minCost)
 
 
 if __name__ == "__main__":
