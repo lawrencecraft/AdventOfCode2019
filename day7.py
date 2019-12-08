@@ -2,6 +2,8 @@ import sys
 
 from typing import NamedTuple
 from typing import List
+from typing import Tuple
+from typing import Callable
 
 from itertools import permutations
 
@@ -29,6 +31,12 @@ class Instruction(NamedTuple):
     arg1_mode: int
     arg2_mode: int
     arg3_mode: int
+
+class ProgramState(NamedTuple):
+    memory: List[int]
+    instructionPointer: int
+    inputDestination: int
+    outputHandler: Callable[[int], None]
 
 def resolve(value, mode, programSpace):
     if mode == MODE_DIRECT:
@@ -80,7 +88,7 @@ def executeComparison(index, instruction, programSpace, test):
     
     return 4, MOVEMENT_RELATIVE
 
-def processInstruction(index, programSpace, handleInput, handleOutput) -> bool:
+def processInstruction(index, programSpace, handleOutput) -> bool:
     rawValue = programSpace[index]
     instruction = parseInstruction(rawValue)
 
@@ -98,10 +106,9 @@ def processInstruction(index, programSpace, handleInput, handleOutput) -> bool:
         return 2, MOVEMENT_RELATIVE
 
     elif instruction.opcode == OPCODE_INPUT:
-        val = handleInput()
         dest = programSpace[index + 1]
-        programSpace[dest] = val
-        return 2, MOVEMENT_RELATIVE
+        state = ProgramState(memory = programSpace, instructionPointer = index + 2, inputDestination = dest, outputHandler = handleOutput)
+        return state, MOVEMENT_HALT
 
     elif instruction.opcode == OPCODE_JMPTRUE:
         return executeConditionalJump(index, instruction, programSpace, lambda x: x)
@@ -116,21 +123,20 @@ def processInstruction(index, programSpace, handleInput, handleOutput) -> bool:
         return executeComparison(index, instruction, programSpace, lambda x, y: x == y)
 
     elif instruction.opcode == OPCODE_HCF:
-        return 0, MOVEMENT_HALT
+        return None, MOVEMENT_HALT
 
     else:
         raise Exception(f"Unparseable opcode: {rawValue}")
 
-def execute(initialRam, handleInput, handleOutput):
-    programSpace = initialRam.copy()
-    instructionPointer = 0
-    programSize = len(programSpace)
+def execute(p: ProgramState) -> ProgramState:
+    programSize = len(p.memory)
+    instructionPointer = p.instructionPointer
 
     while instructionPointer < programSize:
-        pointerMovement, movementType = processInstruction(instructionPointer, programSpace, handleInput, handleOutput)
+        pointerMovement, movementType = processInstruction(instructionPointer, p.memory, p.outputHandler)
 
         if movementType == MOVEMENT_HALT:
-            break
+            return pointerMovement # Could be none -> indicates termination
         elif movementType == MOVEMENT_RELATIVE:
             instructionPointer += pointerMovement
         elif movementType == MOVEMENT_ABSOLUTE:
@@ -138,20 +144,48 @@ def execute(initialRam, handleInput, handleOutput):
         else:
             raise Exception(f"Unknown movement type: {movementType}")
 
-def runProgramForAmplifier(initialRam, phaseSetting, signal):
-    inputQueue = [phaseSetting, signal]
-    outputQueue = []
 
-    execute(initialRam, lambda: inputQueue.pop(0), lambda x: outputQueue.append(x))
 
-    return outputQueue[0]
+def startNew(initialRam, handleOutput) -> ProgramState:
+    initialState = ProgramState(memory = initialRam.copy(), instructionPointer = 0, outputHandler = handleOutput, inputDestination = None)
+    return execute(initialState)
 
-def solveForPermutation(initialRam, perm):
-    signal = 0
-    for r in perm:
-        signal = runProgramForAmplifier(initialRam, r, signal)
+def resumeWithInput(programState: ProgramState, value: int):
+    if not programState:
+        raise Exception("Cannot resume explicitly halted program")
+    programState.memory[programState.inputDestination] = value
+    return execute(programState)
 
-    return signal
+# def staticInput(programState, )
+
+def startWithStaticInput(initialRam, inputQueue, handleOutput):
+    state = startNew(initialRam, handleOutput)
+    while state and inputQueue:
+        state = resumeWithInput(state, inputQueue.pop(0))
+
+    return state
+
+
+
+def runMultipleAmplifiers(program: List[int], amplifierPermutation: Tuple[int]):
+    numAmplifiers = len(amplifierPermutation)
+    outputs = [[] for _ in range(numAmplifiers)]
+
+    def generateOutputHandler(index):
+        return lambda x: outputs[index].append(x)
+
+    amplifiers = [startWithStaticInput(program, [amplifierPermutation[i]], generateOutputHandler(i)) for i in range(numAmplifiers)]
+    currentInput = 0
+
+    # Run through each program in turn
+    while True:
+        for i, s in enumerate(amplifiers):
+            amplifiers[i] = resumeWithInput(s, currentInput)
+            currentInput = outputs[i][-1]
+        if not amplifiers[-1]:
+            return currentInput
+
+
 
 
 def doIt():
@@ -159,7 +193,8 @@ def doIt():
     with open("input_day7") as f:
         ops = list(map(int, f.read().split(',')))
 
-    print(max(solveForPermutation(ops, x) for x in permutations([0, 1, 2, 3, 4])))
+    print(max(runMultipleAmplifiers(ops, p) for p in permutations([9,8,7,6,5])))
+
 
 if __name__ == "__main__":
     doIt()
