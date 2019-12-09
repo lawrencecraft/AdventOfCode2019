@@ -17,6 +17,8 @@ OPCODE_JMPFALSE = 6
 OPCODE_LESSTHAN = 7
 OPCODE_EQUALS = 8
 
+OPCODE_SETREL = 9
+
 OPCODE_HCF = 99
 
 MODE_RELATIVE = 2
@@ -70,8 +72,16 @@ class Memory(object):
     def __mapToPage__(self, address: int) -> Tuple[int, int]:
         return (address // self.__pageSize__, address % self.__pageSize__)
 
-    def __str__(self):
+    def __repr__(self):
         return f"Memory(pageSize={self.__pageSize__}, realPages={len(self.__pageMap__)}, pages={self.__pageMap__})"
+
+
+class Offsets(object):
+    def __init__(self):
+        self.offset = 0
+
+    def moveOffset(self, value):
+        self.offset += value
 
 
 class ProgramState(NamedTuple):
@@ -79,7 +89,7 @@ class ProgramState(NamedTuple):
     instructionPointer: int
     inputDestination: int
     outputHandler: Callable[[int], None]
-    relativeOffset: int
+    relativeOffset: Offsets
 
 
 def resolve(value, mode, programState: ProgramState):
@@ -87,6 +97,8 @@ def resolve(value, mode, programState: ProgramState):
         return value
     elif mode == MODE_POSITION:
         return programState.memory[value]
+    elif mode == MODE_RELATIVE:
+        return programState.memory[programState.relativeOffset.offset + value]
     else:
         raise Exception(f"Unknown mode: {mode}")
 
@@ -110,9 +122,17 @@ def extractParameters(index, instruction, programState: ProgramState):
     return val1, val2
 
 
+def resolveDestination(index, mode, programState: ProgramState):
+    dst = programState.memory[index]
+    if mode == MODE_RELATIVE:
+        dst += programState.relativeOffset.offset
+
+    return dst
+
+
 def extractParametersAndDestination(index, instruction, programState: ProgramState):
     val1, val2 = extractParameters(index, instruction, programState)
-    dst = programState.memory[index + 3]
+    dst = resolveDestination(index + 3, instruction.arg3_mode, programState)
     return val1, val2, dst
 
 
@@ -124,6 +144,7 @@ def executeInstruction(index, instruction, programState: ProgramState, transform
 
 def executeConditionalJump(index, instruction, programState: ProgramState, test) -> bool:
     val1, val2 = extractParameters(index, instruction, programState)
+
     if test(val1):
         return val2, MOVEMENT_ABSOLUTE
     else:
@@ -158,30 +179,36 @@ def processInstruction(index, programState: ProgramState) -> bool:
     elif instruction.opcode == OPCODE_OUTPUT:
         val = programState.memory[index + 1]
         programState.outputHandler(
-            resolve(val, instruction.arg1_mode, programState.memory))
+            resolve(val, instruction.arg1_mode, programState))
         return 2, MOVEMENT_RELATIVE
 
     elif instruction.opcode == OPCODE_INPUT:
-        dest = programState.memory[index + 1]
+        dest = resolveDestination(index + 1, instruction.arg1_mode, programState)
         state = ProgramState(memory=programState.memory, instructionPointer=index + 2,
                              inputDestination=dest, outputHandler=programState.outputHandler,
                              relativeOffset=programState.relativeOffset)
         return state, MOVEMENT_HALT
 
     elif instruction.opcode == OPCODE_JMPTRUE:
-        return executeConditionalJump(index, instruction, programState.memory, lambda x: x)
+        return executeConditionalJump(index, instruction, programState, lambda x: x)
 
     elif instruction.opcode == OPCODE_JMPFALSE:
-        return executeConditionalJump(index, instruction, programState.memory, lambda x: not x)
+        return executeConditionalJump(index, instruction, programState, lambda x: not x)
 
     elif instruction.opcode == OPCODE_LESSTHAN:
-        return executeComparison(index, instruction, programState.memory, lambda x, y: x < y)
+        return executeComparison(index, instruction, programState, lambda x, y: x < y)
 
     elif instruction.opcode == OPCODE_EQUALS:
-        return executeComparison(index, instruction, programState.memory, lambda x, y: x == y)
+        return executeComparison(index, instruction, programState, lambda x, y: x == y)
 
     elif instruction.opcode == OPCODE_HCF:
         return None, MOVEMENT_HALT
+
+    elif instruction.opcode == OPCODE_SETREL:
+        relativeDelta = resolve(
+            programState.memory[index + 1], instruction.arg1_mode, programState)
+        programState.relativeOffset.moveOffset(relativeDelta)
+        return 2, MOVEMENT_RELATIVE
 
     else:
         raise Exception(f"Unparseable opcode: {rawValue}")
@@ -206,10 +233,11 @@ def execute(p: ProgramState) -> ProgramState:
 
 def startNew(initialRam, handleOutput) -> ProgramState:
     initialState = ProgramState(
-        memory=Memory(initialRam.copy()), 
-        instructionPointer=0, 
-        outputHandler=handleOutput, 
-        inputDestination=None)
+        memory=Memory(initialRam.copy()),
+        instructionPointer=0,
+        outputHandler=handleOutput,
+        inputDestination=None,
+        relativeOffset=Offsets())
     return execute(initialState)
 
 
@@ -228,12 +256,19 @@ def startWithStaticInput(initialRam, inputQueue, handleOutput):
     return state
 
 
+def runInteractive(initialRam):
+    state = startNew(initialRam, lambda x: print(x))
+    while state:
+        ip = int(sys.stdin.readline().strip())
+        state = resumeWithInput(state, ip)
+
+
 def doIt():
     ops = []
     with open("input_day9") as f:
         ops = list(map(int, f.read().split(',')))
 
-    pass
+    runInteractive(ops)
 
 
 if __name__ == "__main__":
