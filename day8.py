@@ -24,12 +24,6 @@ def printImage(data, x):
     for line in chunk(list(map(m.get, data)), x):
         print(''.join(line))
 
-
-
-
-
-
-
 if __name__ == "__main__":
     d = None
     with open("input_day8") as f:
