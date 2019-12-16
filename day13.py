@@ -7,6 +7,8 @@ from typing import Callable
 
 from itertools import permutations
 
+import time
+
 OPCODE_ADD = 1
 OPCODE_MUL = 2
 OPCODE_INPUT = 3
@@ -278,13 +280,80 @@ def getTheThings(program):
     print(min(x for x,y,_ in parseOutput(op)))
     print(min(y for x,y,_ in parseOutput(op)))
 
+CHAR_DISPLAY = [' ', '@', '#', '-', 'o']
+
+def render(grid, score):
+    print(chr(27)+'[2j')
+    print('\033c')
+    print('\x1bc')
+    for row in grid:
+        print(''.join(CHAR_DISPLAY[c] for c in row))
+    print(f"Score: {score}")
+    time.sleep(.1)
+
+def applyOutput(outputs, grid):
+    score = None
+    ballX = None
+    paddleX = None
+    for x,y,t in parseOutput(outputs):
+        if x == -1:
+            score = t
+        else:
+            if t == 4:
+                ballX = x
+            elif t == 3:
+                paddleX = x
+
+            grid[y][x] = t
+    return score, ballX, paddleX
+
+def direction(paddleX, ballX):
+    if paddleX == ballX:
+        return 0
+    elif paddleX > ballX:
+        return 1
+    else:
+        return -1
+
+def playGame(program):
+    program[0] = 2
+    op = []
+    state = startNew(program, lambda x: op.append(x))
+    initialThings = parseOutput(state)
+
+    maxx = max(x for x,y,_ in parseOutput(op)) + 1
+    maxy = max(y for x,y,_ in parseOutput(op)) + 1
+
+    grid = [[0] * maxx for _ in range(maxy)]
+    score, paddleX, ballX = applyOutput(op, grid)
+
+    # render(grid, score)
+    import time
+
+    while state:
+
+        i = direction(paddleX, ballX)
+        
+
+        op = []
+        state = resumeWithInput(state, i)
+        newScore, newPaddleX, newBallX = applyOutput(op, grid)
+        score = newScore or score
+        paddleX = newPaddleX or paddleX
+        ballX = newBallX or ballX
+        render(grid, score)
+
+    print(score)
+
+
+
 
 def doIt():
     ops = []
     with open("input_day13") as f:
         ops = list(map(int, f.read().split(',')))
 
-    getTheThings(ops)
+    playGame(ops)
 
 
 if __name__ == "__main__":
