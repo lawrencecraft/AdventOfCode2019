@@ -281,7 +281,7 @@ def rotate(current, right=True):
         
 
 def paint(program):
-    colors = {}
+    colors = {(0,0):1}
     
     currentPosition = (0, 0)
     currentVelocity = (0, 1)
@@ -299,11 +299,17 @@ def paint(program):
         dx,dy = currentVelocity
         currentPosition = (x + dx, y + dy)
 
-    print(f"number visited: {len(colors)}")
+    coords = colors.keys()
+    xs = list(map(lambda x: x[0], coords))
+    ys = list(map(lambda x: x[1], coords))
+    maxx = (max(xs))
+    maxy = (max(ys))
+    minx = (min(xs))
+    miny = (min(ys))
 
-        
-    
-
+    for y in range(maxy, miny-1,-1):
+        row = ['#' if colors.get((x, y)) == 1 else ' ' for x in range(minx, maxx+1)]
+        print(''.join(row))
 
 
 def doIt():
