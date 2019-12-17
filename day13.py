@@ -280,7 +280,7 @@ def getTheThings(program):
     print(min(x for x,y,_ in parseOutput(op)))
     print(min(y for x,y,_ in parseOutput(op)))
 
-CHAR_DISPLAY = [' ', '@', '#', '-', 'o']
+CHAR_DISPLAY = [' ', '@', '#', '_', 'o']
 
 def render(grid, score):
     print(chr(27)+'[2j')
