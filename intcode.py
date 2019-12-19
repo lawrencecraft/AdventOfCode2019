@@ -7,6 +7,8 @@ from typing import Callable
 
 from itertools import permutations
 
+import copy
+
 import time
 
 OPCODE_ADD = 1
@@ -65,6 +67,12 @@ class Memory(object):
             newPage[offset] = value
             self.__pageMap__[page] = newPage
 
+    def fork(self):
+        newMemory = Memory()
+        newMemory.__pageSize__ = self.__pageSize__
+        newMemory.__pageMap__ = copy.deepcopy(self.__pageMap__)
+        return newMemory
+
     def __getitem__(self, address):
         return self.access(address)
 
@@ -79,8 +87,8 @@ class Memory(object):
 
 
 class Offsets(object):
-    def __init__(self):
-        self.offset = 0
+    def __init__(self, initialOffset=0):
+        self.offset = initialOffset
 
     def moveOffset(self, value):
         self.offset += value
@@ -92,6 +100,16 @@ class ProgramState(NamedTuple):
     inputDestination: int
     outputHandler: Callable[[int], None]
     relativeOffset: Offsets
+
+    def fork(self, outputHandler) -> NamedTuple:
+        ram = self.memory.fork()
+        offset = Offsets(self.relativeOffset.offset)
+
+        return ProgramState(memory=ram,
+                            relativeOffset=offset, 
+                            instructionPointer=self.instructionPointer, 
+                            outputHandler=outputHandler, 
+                            inputDestination=self.inputDestination)
 
 
 def resolve(value, mode, programState: ProgramState):
@@ -185,7 +203,8 @@ def processInstruction(index, programState: ProgramState) -> bool:
         return 2, MOVEMENT_RELATIVE
 
     elif instruction.opcode == OPCODE_INPUT:
-        dest = resolveDestination(index + 1, instruction.arg1_mode, programState)
+        dest = resolveDestination(
+            index + 1, instruction.arg1_mode, programState)
         state = ProgramState(memory=programState.memory, instructionPointer=index + 2,
                              inputDestination=dest, outputHandler=programState.outputHandler,
                              relativeOffset=programState.relativeOffset)
@@ -264,98 +283,12 @@ def runInteractive(initialRam):
         ip = int(sys.stdin.readline().strip())
         state = resumeWithInput(state, ip)
 
-def parseOutput(op):
-    for x in range(0, len(op), 3):
-        yield tuple(op[x:x+3])
-
-
-
-def getTheThings(program):
-    op = []
-    startNew(program, lambda x: op.append(x))
-
-    print(sum(1 for _,_,b in parseOutput(op) if b == 2))
-    print(max(x for x,y,_ in parseOutput(op)))
-    print(max(y for x,y,_ in parseOutput(op)))
-    print(min(x for x,y,_ in parseOutput(op)))
-    print(min(y for x,y,_ in parseOutput(op)))
-
-CHAR_DISPLAY = [' ', '@', '#', '_', 'o']
-
-def render(grid, score):
-    print(chr(27)+'[2j')
-    print('\033c')
-    print('\x1bc')
-    for row in grid:
-        print(''.join(CHAR_DISPLAY[c] for c in row))
-    print(f"Score: {score}")
-    time.sleep(.1)
-
-def applyOutput(outputs, grid):
-    score = None
-    ballX = None
-    paddleX = None
-    for x,y,t in parseOutput(outputs):
-        if x == -1:
-            score = t
-        else:
-            if t == 4:
-                ballX = x
-            elif t == 3:
-                paddleX = x
-
-            grid[y][x] = t
-    return score, ballX, paddleX
-
-def direction(paddleX, ballX):
-    if paddleX == ballX:
-        return 0
-    elif paddleX > ballX:
-        return 1
-    else:
-        return -1
-
-def playGame(program, renderGame=True):
-    program[0] = 2
-    op = []
-    state = startNew(program, lambda x: op.append(x))
-    initialThings = parseOutput(state)
-
-    maxx = max(x for x,y,_ in parseOutput(op)) + 1
-    maxy = max(y for x,y,_ in parseOutput(op)) + 1
-
-    grid = [[0] * maxx for _ in range(maxy)]
-    score, paddleX, ballX = applyOutput(op, grid)
-
-    # render(grid, score)
-    import time
-
+def runInteractivePrintFull(initialRam):
+    output = []
+    state = startNew(initialRam, lambda x: output.append(chr(x)))
+    print(''.join(output))
     while state:
-
-        i = direction(paddleX, ballX)
-        
-
-        op = []
-        state = resumeWithInput(state, i)
-        newScore, newPaddleX, newBallX = applyOutput(op, grid)
-        score = newScore or score
-        paddleX = newPaddleX or paddleX
-        ballX = newBallX or ballX
-        if renderGame:
-            render(grid, score)
-
-    print(score)
-
-
-
-
-def doIt():
-    ops = []
-    with open("input_day13") as f:
-        ops = list(map(int, f.read().split(',')))
-
-    playGame(ops, renderGame=False)
-
-
-if __name__ == "__main__":
-    doIt()
+        output = []
+        ip = int(sys.stdin.readline().strip())
+        state = resumeWithInput(state, ip)
+        print(''.join(output))
