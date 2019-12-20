@@ -132,8 +132,6 @@ def solveMazeFast(maze):
                 heapq.heappush(q, (distance + cost, neighbor, newKeys))
 
 
-    print(adjacency)
-
 def findEntrance(maze):
     for y, row in enumerate(maze):
         for x, c in enumerate(row):
@@ -175,9 +173,7 @@ def part2(maze):
                 if c.islower():
                     allKeys.add(c)
 
-    print(interestingPlaces)
     keyString = ''.join(sorted(allKeys))
-    print(keyString)
     height = len(maze)
     width = len(maze[0])
 
@@ -206,8 +202,6 @@ def part2(maze):
                 elif p not in visited:
                     q.append((steps + 1, p))
                     visited.add(p)
-    print(adjacency)
-
 
     ############################################
     ## Dijkstra's across the robot state graph
@@ -248,13 +242,18 @@ def part2(maze):
         return GraphNode(**node)
 
     ctr = 0
+    import time
+    t = time.time()
     while q:
         distance, currentState = heapq.heappop(q)
         if currentState.keys == keyString:
             return distance
         ctr += 1
         if ctr % 10000 == 0:
-            print((distance, currentState))
+            dt = time.time() - t
+            t = time.time()
+            nps = 10000 / dt
+            print(f"{(distance, currentState)} - {nps} nodes/sec")
         
         node1neighbors = [(cost, modifyGraph(currentState, x, "robot1Node")) for x, cost in neighborsOf(currentState.robot1Node, currentState)]
         node2neighbors = [(cost, modifyGraph(currentState, x, "robot2Node")) for x, cost in neighborsOf(currentState.robot2Node, currentState)]
