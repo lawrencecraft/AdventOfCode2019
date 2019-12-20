@@ -134,9 +134,140 @@ def solveMazeFast(maze):
 
     print(adjacency)
 
+def findEntrance(maze):
+    for y, row in enumerate(maze):
+        for x, c in enumerate(row):
+            if c == MAZE_ENTRANCE:
+                return (x, y)
     
+def part2(maze):
+    # Edit dat maze
+    #############################################
+    ### Setup
+    interestingPlaces = {}
+    allKeys = set()
+    entrance = None
+    maze = list(map(list, maze))
 
+    entrance = findEntrance(maze)
+                
+
+    for dx, dy in NEIGHBORS:
+        maze[dy + entrance[1]][dx + entrance[0]] = '#'
     
+    starts = []
+    for i, dx in enumerate([1, -1]):
+        for j, dy in enumerate([1, -1]):
+            s = (entrance[0] + dx, entrance[1] + dy)
+            ns = i + 2 * j
+            name = 's' + str(ns)
+            maze[s[1]][s[0]] = name
+            interestingPlaces[name] = s
+            starts.append(name)
+
+
+
+    # Doing this a few times is messy but computers are fast ¯\_(ツ)_/¯
+    for y, row in enumerate(maze):
+        for x, c in enumerate(row):
+            if c.isalpha():
+                interestingPlaces[c] = (x, y)
+                if c.islower():
+                    allKeys.add(c)
+
+    print(interestingPlaces)
+    keyString = ''.join(sorted(allKeys))
+    print(keyString)
+    height = len(maze)
+    width = len(maze[0])
+
+    adjacency = defaultdict(dict)
+
+    ################################################
+    ## Initial BFS to build up our adjacency list
+    def getNeighboringSquares(pos):
+        # value, position where not visited
+        for n in NEIGHBORS:
+            nx, ny = n[0] + pos[0], n[1] + pos[1]
+            if nx >= 0 and nx < width and ny >= 0 and ny < height: 
+                v = maze[ny][nx]
+                if v != MAZE_WALL:
+                    yield v, (nx, ny)
+
+    for c, pos in interestingPlaces.items():
+        visited = {pos}
+        q = deque([(0, pos)])
+
+        while q:
+            steps, current = q.popleft()
+            for v, p in getNeighboringSquares(current):
+                if v in interestingPlaces and p not in visited:
+                    adjacency[c][v] = steps + 1
+                elif p not in visited:
+                    q.append((steps + 1, p))
+                    visited.add(p)
+    print(adjacency)
+
+
+    ############################################
+    ## Dijkstra's across the robot state graph
+
+    # This is the state record which represents a node in our extended graph
+    # Each robot state is in there, so we can Dijkstra's over the robot states
+    class GraphNode(NamedTuple):
+        robot1Node: str
+        robot2Node: str
+        robot3Node: str
+        robot4Node: str
+
+        keys: str
+
+    q = []
+    heapq.heappush(q, (0, GraphNode("s0", "s1", "s2", "s3", keys="")))
+    distances = {}
+
+    def neighborsOf(place: str, currentNode: GraphNode):
+        nodes = adjacency[place]
+        for n, cost in nodes.items():
+            if n.isupper() and n.lower() not in currentNode.keys:
+                continue
+            else:
+                yield n, cost
+    def modifyGraph(node: GraphNode, newNeighbor: str, field: str):
+        newKeys = node.keys
+        if newNeighbor.islower() and newNeighbor.isalpha() and newNeighbor not in newKeys:
+            newKeys = ''.join(sorted(newKeys + newNeighbor))
+        node = {
+            "keys": newKeys,
+            "robot1Node": node.robot1Node,
+            "robot2Node": node.robot2Node,
+            "robot3Node": node.robot3Node,
+            "robot4Node": node.robot4Node
+        } 
+        node[field] = newNeighbor
+        return GraphNode(**node)
+
+    ctr = 0
+    while q:
+        distance, currentState = heapq.heappop(q)
+        if currentState.keys == keyString:
+            return distance
+        ctr += 1
+        if ctr % 10000 == 0:
+            print((distance, currentState))
+        
+        node1neighbors = [(cost, modifyGraph(currentState, x, "robot1Node")) for x, cost in neighborsOf(currentState.robot1Node, currentState)]
+        node2neighbors = [(cost, modifyGraph(currentState, x, "robot2Node")) for x, cost in neighborsOf(currentState.robot2Node, currentState)]
+        node3neighbors = [(cost, modifyGraph(currentState, x, "robot3Node")) for x, cost in neighborsOf(currentState.robot3Node, currentState)]
+        node4neighbors = [(cost, modifyGraph(currentState, x, "robot4Node")) for x, cost in neighborsOf(currentState.robot4Node, currentState)]
+        
+        allNeighbors = node1neighbors + node2neighbors + node3neighbors + node4neighbors
+
+        for cost, neighbor in allNeighbors:
+            fullCost = cost + distance
+            if neighbor not in distances or distances[neighbor] > fullCost:
+                distances[neighbor] = fullCost
+                heapq.heappush(q, (fullCost, neighbor))
 
 
 if __name__ == "__main__":
@@ -144,3 +275,4 @@ if __name__ == "__main__":
     with open("input_day18") as f:
         maze = list(m.strip() for m in f.readlines())
     print(solveMazeFast(maze))
+    print(part2(maze))
