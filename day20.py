@@ -71,7 +71,7 @@ def solveMazePart2(maze):
 
     def isOutside(p):
         x, y = p
-        return y < 2 or height - y < 2 or x < 2 or height - x < 2:
+        return y < 3 or height - y < 4 or x < 3 or width - x < 4
 
 
     def hasPortal(x, y):
@@ -91,32 +91,36 @@ def solveMazePart2(maze):
 
     # Just do the search, I guess
     start = portalToPoints['AA'][0]
-    visited = {start}
-    toVisit = [(0, start)]
+    visited = {(0, start)}
+    
+    toVisit = [(0, (0, start))]
 
-    target = portalToPoints['ZZ'][0]
+    target = (0, portalToPoints['ZZ'][0])
 
     def getEdges(loc):
-        x, y = loc
+        level, p = loc
+        x, y = p
         for dy,dx in DIRS:
             neighbor = (dx+x, dy+y)
             c = maze[neighbor[1]][neighbor[0]]
             if c == '.':
-                yield neighbor
+                yield (level, neighbor)
         # Check if neighbor is in a portal
-        if loc in pointToPortals:
-            portal = pointToPortals[loc]
+        if p in pointToPortals:
+            portal = pointToPortals[p]
             points = portalToPoints[portal]
 
-            for p in points:
-                if p != loc:
-                    yield p
+            if not(isOutside(p) and level == 0):
+                levelDelta = -1 if isOutside(p) else 1
+                for pn in points:
+                    if pn != p:
+                        yield (level + levelDelta, pn)
         
 
     while toVisit:
-        cost, location = toVisit.pop(0)
+        cost, node = toVisit.pop(0)
 
-        for n in getEdges(location):
+        for n in getEdges(node):
             if n not in visited:
                 costToNeighbor = cost + 1
                 if n == target:
@@ -128,7 +132,7 @@ def solveMazePart2(maze):
 if __name__ == "__main__":
     maze = []
     with open("input_day20") as f:
-        maze = list(map(list, f.readlines()))
+        maze = list(map(list, map(lambda x: x.strip('\n').strip('\r'), f.readlines())))
 
     print(solveMaze(maze))
-
+    print(solveMazePart2(maze))
