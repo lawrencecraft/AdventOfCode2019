@@ -292,3 +292,7 @@ def runInteractivePrintFull(initialRam):
         ip = int(sys.stdin.readline().strip())
         state = resumeWithInput(state, ip)
         print(''.join(output))
+
+def loadProgram(path):
+    with open(path) as f:
+        return list(map(int, f.read().split(',')))
