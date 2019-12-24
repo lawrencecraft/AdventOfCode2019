@@ -92,8 +92,10 @@ def solveMazePart2(maze):
     # Just do the search, I guess
     start = portalToPoints['AA'][0]
     visited = {(0, start)}
+
+    from collections import deque
     
-    toVisit = [(0, (0, start))]
+    toVisit = deque([(0, (0, start))])
 
     target = (0, portalToPoints['ZZ'][0])
 
@@ -118,7 +120,7 @@ def solveMazePart2(maze):
         
 
     while toVisit:
-        cost, node = toVisit.pop(0)
+        cost, node = toVisit.popleft()
 
         for n in getEdges(node):
             if n not in visited:
